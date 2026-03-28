@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HomeMakerz - Login">
+  <meta name="theme-color" content="#2d3748">
+  <title>HomeMakerz — Login</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #1a202c 0%, #2d3748 50%, #1a202c 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e2e8f0;
+    }
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+    }
+    .login-card {
+      background: rgba(45, 55, 72, 0.8);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 48px 36px;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+    }
+    .login-logo {
+      font-size: 3rem;
+      margin-bottom: 8px;
+    }
+    .login-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, #63b3ed, #b794f4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .login-subtitle {
+      font-size: 0.9rem;
+      color: #a0aec0;
+      margin-bottom: 32px;
+    }
+    .pin-field {
+      position: relative;
+      margin-bottom: 24px;
+    }
+    .pin-field input {
+      width: 100%;
+      padding: 16px 20px;
+      font-size: 1.4rem;
+      font-family: 'Inter', monospace;
+      font-weight: 600;
+      letter-spacing: 0.5em;
+      text-align: center;
+      background: rgba(26, 32, 44, 0.6);
+      border: 2px solid rgba(99, 179, 237, 0.3);
+      border-radius: 12px;
+      color: #e2e8f0;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .pin-field input:focus {
+      border-color: #63b3ed;
+      box-shadow: 0 0 0 4px rgba(99, 179, 237, 0.15);
+    }
+    .pin-field input::placeholder {
+      letter-spacing: 0.3em;
+      font-size: 1rem;
+      font-weight: 400;
+      color: #4a5568;
+    }
+    .login-btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #4a6fa5, #63b3ed);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+    }
+    .login-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(74, 111, 165, 0.4);
+    }
+    .login-btn:active {
+      transform: translateY(0);
+    }
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .login-error {
+      margin-top: 16px;
+      padding: 10px 16px;
+      background: rgba(229, 62, 62, 0.15);
+      border: 1px solid rgba(229, 62, 62, 0.3);
+      border-radius: 8px;
+      color: #fc8181;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .login-error.visible {
+      display: block;
+      animation: shake 0.4s ease;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .login-footer {
+      margin-top: 24px;
+      font-size: 0.78rem;
+      color: #4a5568;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">🏠</div>
+      <div class="login-title">HomeMakerz</div>
+      <div class="login-subtitle">Enter your access PIN to continue</div>
+      <form id="login-form">
+        <div class="pin-field">
+          <input type="password" id="pin-input"
+                 placeholder="Enter PIN" autocomplete="off" required autofocus>
+        </div>
+        <button type="submit" class="login-btn" id="login-btn">Unlock</button>
+        <div class="login-error" id="login-error">Invalid PIN. Please try again.</div>
+      </form>
+      <div class="login-footer">🔒 Access restricted</div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pin = document.getElementById('pin-input').value.trim();
+      const btn = document.getElementById('login-btn');
+      const errEl = document.getElementById('login-error');
+
+      if (!pin) {
+        errEl.textContent = 'Please enter your PIN.';
+        errEl.classList.add('visible');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+      errEl.classList.remove('visible');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          window.location.href = '/';
+        } else {
+          errEl.textContent = data.error || 'Invalid PIN. Please try again.';
+          errEl.classList.add('visible');
+          document.getElementById('pin-input').value = '';
+          document.getElementById('pin-input').focus();
+        }
+      } catch (err) {
+        errEl.textContent = 'Connection error. Please try again.';
+        errEl.classList.add('visible');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Unlock';
+    });
+  </script>
+</body>
+</html>
