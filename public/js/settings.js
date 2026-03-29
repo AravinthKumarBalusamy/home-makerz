@@ -45,12 +45,18 @@ const SettingsPage = {
     // Build widget lists
     const leftWidgets = (settings.widgets?.left || []).map(w => `
           <div class="habit-row"><span>${w.type === 'quote' ? '💬' : w.type === 'reminder' ? '🔔' : w.type === 'photo' ? '📷' : '📄'} ${w.title}</span>
-          <button class="btn-icon" onclick="SettingsPage.deleteWidget('left','${w.id}')">🗑️</button></div>
+          <div>
+            <button class="btn-icon" onclick="SettingsPage.editWidget('left','${w.id}')" title="Edit">✏️</button>
+            <button class="btn-icon" onclick="SettingsPage.deleteWidget('left','${w.id}')" title="Delete">🗑️</button>
+          </div></div>
         `).join('');
 
     const rightWidgets = (settings.widgets?.right || []).map(w => `
           <div class="habit-row"><span>${w.type === 'quote' ? '💬' : w.type === 'reminder' ? '🔔' : w.type === 'photo' ? '📷' : '📄'} ${w.title}</span>
-          <button class="btn-icon" onclick="SettingsPage.deleteWidget('right','${w.id}')">🗑️</button></div>
+          <div>
+            <button class="btn-icon" onclick="SettingsPage.editWidget('right','${w.id}')" title="Edit">✏️</button>
+            <button class="btn-icon" onclick="SettingsPage.deleteWidget('right','${w.id}')" title="Delete">🗑️</button>
+          </div></div>
         `).join('');
 
     const container = document.getElementById('page-content');
@@ -278,47 +284,77 @@ const SettingsPage = {
   },
 
   // ── Widgets ─────────────────────────────────────────────────────
-  showWidgetModal() {
+  showWidgetModal(widget = null, side = null) {
+    const isEdit = !!widget;
+    const contentValue = widget ? (widget.type === 'reminder' ? (widget.items || []).join('\n') : (widget.content || '')) : '';
+    
     const html = `
       <form id="widget-form">
         <div class="form-row">
           <div class="form-group"><label>Sidebar</label>
-            <select id="wid-side"><option value="left">Left</option><option value="right">Right</option></select>
+            <select id="wid-side" ${isEdit ? 'disabled' : ''}>
+              <option value="left" ${side === 'left' ? 'selected' : ''}>Left</option>
+              <option value="right" ${side === 'right' ? 'selected' : ''}>Right</option>
+            </select>
           </div>
           <div class="form-group"><label>Type</label>
-            <select id="wid-type"><option value="text">Custom Text</option><option value="quote">Quote</option><option value="reminder">Reminders</option><option value="photo">Photo</option></select>
+            <select id="wid-type" ${isEdit ? 'disabled' : ''}>
+              <option value="text" ${widget?.type === 'text' ? 'selected' : ''}>Custom Text</option>
+              <option value="quote" ${widget?.type === 'quote' ? 'selected' : ''}>Quote</option>
+              <option value="reminder" ${widget?.type === 'reminder' ? 'selected' : ''}>Reminders</option>
+              <option value="photo" ${widget?.type === 'photo' ? 'selected' : ''}>Photo</option>
+            </select>
           </div>
         </div>
-        <div class="form-group"><label>Title</label><input type="text" id="wid-title" required></div>
+        <div class="form-group"><label>Title</label><input type="text" id="wid-title" value="${widget?.title || ''}" required></div>
         <div class="form-group"><label>Content / URL / Items (one per line for reminders)</label>
-          <textarea id="wid-content" rows="4"></textarea>
+          <textarea id="wid-content" rows="4">${contentValue}</textarea>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-outline" onclick="Utils.closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Widget</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Update Widget' : 'Add Widget'}</button>
         </div>
       </form>`;
-    Utils.openModal('Add Widget', html);
+    Utils.openModal(isEdit ? 'Edit Widget' : 'Add Widget', html);
     document.getElementById('widget-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const settings = await API.get('settings');
-      const side = document.getElementById('wid-side').value;
+      const targetSide = isEdit ? side : document.getElementById('wid-side').value;
       const type = document.getElementById('wid-type').value;
-      const widget = {
-        id: 'w' + Date.now(), type,
+      const widgetData = {
+        id: widget?.id || 'w' + Date.now(), 
+        type,
         title: document.getElementById('wid-title').value.trim(),
         content: type !== 'reminder' ? document.getElementById('wid-content').value.trim() : '',
         items: type === 'reminder' ? document.getElementById('wid-content').value.trim().split('\n').filter(Boolean) : undefined
       };
       if (!settings.widgets) settings.widgets = { left: [], right: [] };
-      settings.widgets[side].push(widget);
+      
+      if (isEdit) {
+        // Update existing widget
+        const idx = settings.widgets[targetSide].findIndex(w => w.id === widget.id);
+        if (idx >= 0) settings.widgets[targetSide][idx] = widgetData;
+      } else {
+        // Add new widget
+        settings.widgets[targetSide].push(widgetData);
+      }
+      
       await API.updateCollection('settings', { widgets: settings.widgets });
-      Utils.closeModal(); Utils.toast('Widget added', 'success');
-      SettingsPage.render(); App.renderWidgets(settings);
+      Utils.closeModal(); 
+      Utils.toast(isEdit ? 'Widget updated' : 'Widget added', 'success');
+      SettingsPage.render(); 
+      App.renderWidgets(settings);
     });
   },
 
+  async editWidget(side, id) {
+    const settings = await API.get('settings');
+    const widget = settings.widgets?.[side]?.find(w => w.id === id);
+    if (widget) SettingsPage.showWidgetModal(widget, side);
+  },
+
   async deleteWidget(side, id) {
+    if (!await Utils.confirm('Delete this widget?')) return;
     const settings = await API.get('settings');
     settings.widgets[side] = settings.widgets[side].filter(w => w.id !== id);
     await API.updateCollection('settings', { widgets: settings.widgets });
