@@ -4,6 +4,7 @@
     "description": "Home Management System for your household",
     "start_url": "/",
     "display": "standalone",
+    "orientation": "portrait",
     "background_color": "#f5f6f8",
     "theme_color": "#1e2a3a",
     "icons": [

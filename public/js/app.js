@@ -35,19 +35,49 @@ const App = {
       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
     });
 
+    const sidebarLeft = document.getElementById('sidebar-left');
+    const sidebarRight = document.getElementById('sidebar-right');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    // Helper: close all sidebars
+    const closeSidebars = () => {
+      sidebarLeft.classList.remove('open');
+      sidebarRight.classList.remove('open');
+      overlay.classList.remove('active');
+    };
+
     // Sidebar toggles
     document.getElementById('toggle-left-sidebar').addEventListener('click', () => {
-      document.getElementById('sidebar-left').classList.toggle('open');
+      const opening = !sidebarLeft.classList.contains('open');
+      closeSidebars();
+      if (opening) {
+        sidebarLeft.classList.add('open');
+        overlay.classList.add('active');
+      }
     });
-    document.getElementById('close-left-sidebar').addEventListener('click', () => {
-      document.getElementById('sidebar-left').classList.remove('open');
-    });
+    document.getElementById('close-left-sidebar').addEventListener('click', closeSidebars);
     document.getElementById('toggle-right-sidebar').addEventListener('click', () => {
-      document.getElementById('sidebar-right').classList.toggle('open');
+      const opening = !sidebarRight.classList.contains('open');
+      closeSidebars();
+      if (opening) {
+        sidebarRight.classList.add('open');
+        overlay.classList.add('active');
+      }
     });
-    document.getElementById('close-right-sidebar').addEventListener('click', () => {
-      document.getElementById('sidebar-right').classList.remove('open');
-    });
+    document.getElementById('close-right-sidebar').addEventListener('click', closeSidebars);
+
+    // Overlay click closes sidebars
+    overlay.addEventListener('click', closeSidebars);
+
+    // Bottom nav: "More" button opens left sidebar
+    const moreBtn = document.getElementById('bottom-nav-more');
+    if (moreBtn) {
+      moreBtn.addEventListener('click', () => {
+        closeSidebars();
+        sidebarLeft.classList.add('open');
+        overlay.classList.add('active');
+      });
+    }
 
     // Modal close
     document.getElementById('modal-close').addEventListener('click', Utils.closeModal);
@@ -74,16 +104,23 @@ const App = {
     const page = App.pages[hash];
     if (!page) { location.hash = '#/dashboard'; return; }
 
-    // Update nav active state
+    // Update sidebar nav active state
     document.querySelectorAll('.nav-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.page === hash);
+    });
+
+    // Update bottom nav active state
+    document.querySelectorAll('.bottom-nav-item[data-page]').forEach(item => {
       item.classList.toggle('active', item.dataset.page === hash);
     });
 
     // Update title
     document.getElementById('page-title').textContent = page.title;
 
-    // Close mobile sidebar on nav
+    // Close sidebars + overlay on nav
     document.getElementById('sidebar-left').classList.remove('open');
+    document.getElementById('sidebar-right').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('active');
 
     // Render page
     document.getElementById('page-content').innerHTML = '<div class="loading">Loading...</div>';

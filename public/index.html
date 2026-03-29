@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="HomeMakerz - Home Management System for your household">
   <meta name="theme-color" content="#2d3748">
   <title>HomeMakerz</title>
@@ -86,7 +86,33 @@
       </div>
       <div class="sidebar-widgets" id="right-widgets"></div>
     </aside>
+    <!-- Sidebar Overlay (mobile) -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
   </div>
+
+  <!-- Bottom Navigation (mobile PWA) -->
+  <nav id="bottom-nav" class="bottom-nav">
+    <a href="#/dashboard" class="bottom-nav-item active" data-page="dashboard">
+      <span class="bottom-nav-icon">📋</span>
+      <span class="bottom-nav-label">Home</span>
+    </a>
+    <a href="#/tasks" class="bottom-nav-item" data-page="tasks">
+      <span class="bottom-nav-icon">✅</span>
+      <span class="bottom-nav-label">Tasks</span>
+    </a>
+    <a href="#/expenses" class="bottom-nav-item" data-page="expenses">
+      <span class="bottom-nav-icon">💳</span>
+      <span class="bottom-nav-label">Expenses</span>
+    </a>
+    <a href="#/budget" class="bottom-nav-item" data-page="budget">
+      <span class="bottom-nav-icon">💰</span>
+      <span class="bottom-nav-label">Budget</span>
+    </a>
+    <button class="bottom-nav-item" id="bottom-nav-more">
+      <span class="bottom-nav-icon">☰</span>
+      <span class="bottom-nav-label">More</span>
+    </button>
+  </nav>
 
   <!-- Modal Container -->
   <div class="modal-overlay" id="modal-overlay">
