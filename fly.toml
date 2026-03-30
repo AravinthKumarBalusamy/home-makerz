@@ -1,5 +1,4 @@
 app = "home-makerz"
-# Change this to your nearest region (e.g., bom, sin, iad)
 primary_region = "bom"
 
 [build]
@@ -12,11 +11,10 @@ primary_region = "bom"
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = false    # ← changed
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1      # ← changed
   processes = ["app"]
 
 [[vm]]
   size = "shared-cpu-1x"
-
