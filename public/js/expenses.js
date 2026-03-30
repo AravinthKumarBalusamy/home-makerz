@@ -4,8 +4,13 @@ const ExpensesPage = {
     filters: { category: '', person: '', search: '', dateFrom: '', dateTo: '' },
 
     async render() {
-        const expenses = await API.get('expenses');
+        const [expenses, settings] = await Promise.all([
+            API.get('expenses'),
+            API.get('settings')
+        ]);
         const { month, year } = Utils.currentMonth();
+        ExpensesPage.currentRecurring = ExpensesPage.getRecurringForMonth(settings, month);
+        ExpensesPage.currentPaidReminders = settings.paidReminders || [];
 
         // Apply filters
         let filtered = [...expenses].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -19,12 +24,67 @@ const ExpensesPage = {
         if (ExpensesPage.filters.dateTo) filtered = filtered.filter(e => e.date <= ExpensesPage.filters.dateTo);
 
         const total = filtered.reduce((s, e) => s + (e.amount || 0), 0);
+        const recurringSummary = ExpensesPage.currentRecurring.map(r => ({
+            ...r,
+            status: ExpensesPage.recurringStatus(r, month, year)
+        }));
+        const recurringPaidCount = recurringSummary.filter(r => r.status.status === 'paid').length;
+        const recurringSkippedCount = recurringSummary.filter(r => r.status.status === 'skipped').length;
+        const recurringPendingCount = recurringSummary.length - recurringPaidCount - recurringSkippedCount;
+        
+        // Calculate totals
+        const recurringTotal = ExpensesPage.currentRecurring.reduce((s, r) => s + r.amount, 0);
+        const recurringPaid = recurringSummary.filter(r => r.status.status === 'paid').reduce((s, r) => s + (r.status.amount || r.amount), 0);
+        const recurringBalance = recurringTotal - recurringPaid;
 
         const container = document.getElementById('page-content');
         container.innerHTML = `
       <div class="section-header">
         <div class="section-title">💳 Expense Tracking</div>
         <button class="btn btn-primary" onclick="ExpensesPage.showAddModal()">+ Add Expense</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Recurring This Month</div>
+            <div class="card-subtitle">
+              ${ExpensesPage.currentRecurring.length} item${ExpensesPage.currentRecurring.length !== 1 ? 's' : ''} · 
+              ${recurringPaidCount} paid · ${recurringSkippedCount} skipped · ${recurringPendingCount} pending
+              ${recurringTotal > 0 ? ` · Total: <strong>${Utils.currency(recurringTotal)}</strong> · Paid: <strong class="text-success">${Utils.currency(recurringPaid)}</strong> · Balance: <strong class="${recurringBalance > 0 ? 'text-danger' : 'text-success'}">${Utils.currency(recurringBalance)}</strong>` : ''}
+            </div>
+          </div>
+        </div>
+        ${ExpensesPage.currentRecurring.length === 0 ? '<p class="text-muted">No recurring expenses scheduled this month.</p>' : `
+          <div class="recurring-grid">
+            ${recurringSummary.map(r => `
+              <div class="recurring-card ${r.status.status}">
+                <div class="rc-top">
+                  <div>
+                    <div class="rc-title">${r.name}</div>
+                    <div class="text-small text-muted">${r.category}${r.subcategory ? ' › ' + r.subcategory : ''}</div>
+                  </div>
+                  <div class="rc-amount">${Utils.currency(r.amount)}</div>
+                </div>
+                <div class="rc-status-row">
+                  <span class="badge badge-category">${r.frequency}</span>
+                  <span class="badge ${r.status.status === 'paid' ? 'badge-priority-low' : r.status.status === 'skipped' ? 'badge-priority-medium' : 'badge-priority-high'}">
+                    ${r.status.status === 'paid' ? 'Paid' : r.status.status === 'skipped' ? 'Skipped' : 'Pending'}
+                  </span>
+                </div>
+                ${r.status.status === 'paid' && r.status.amount ? `<div class="text-small text-muted">Paid ${Utils.currency(r.status.amount)}${r.status.date ? ' on ' + Utils.formatDateShort(r.status.date) : ''}</div>` : ''}
+                <div class="recurring-actions">
+                  <button class="btn btn-primary btn-sm" onclick="ExpensesPage.showRecurringPayModal('${r.id}')">
+                    ${r.status.status === 'paid' ? 'Adjust Amount' : 'Mark Paid'}
+                  </button>
+                  <button class="btn btn-outline btn-sm" onclick="ExpensesPage.skipRecurring('${r.id}')" ${r.status.status !== 'pending' ? 'disabled' : ''}>
+                    Not Required
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
       </div>
 
       <div class="filter-bar">
@@ -182,6 +242,143 @@ const ExpensesPage = {
             if (hash.includes('dashboard')) DashboardPage.render();
             else ExpensesPage.render();
         });
+    },
+
+    getRecurringForMonth(settings, month) {
+        return (settings.recurringExpenses || []).filter(r => {
+            if (r.frequency === 'monthly') return true;
+            if (r.frequency === 'yearly' && Array.isArray(r.months) && r.months.includes(month)) return true;
+            return false;
+        });
+    },
+
+    recurringStatus(recurring, month, year) {
+        const record = (ExpensesPage.currentPaidReminders || []).find(r =>
+            r.expenseId === recurring.id && r.dueMonth === month && r.year === year
+        );
+        if (!record) return { status: 'pending' };
+        return {
+            status: record.status || 'paid',
+            amount: record.amount,
+            date: record.paidDate,
+            expenseEntryId: record.expenseEntryId
+        };
+    },
+
+    async showRecurringPayModal(recurringId) {
+        const { month, year } = Utils.currentMonth();
+        const recurring = (ExpensesPage.currentRecurring || []).find(r => r.id === recurringId);
+        if (!recurring) return;
+        const status = ExpensesPage.recurringStatus(recurring, month, year);
+        const defaultAmount = status.amount || recurring.amount;
+        const defaultDate = status.date || Utils.todayStr();
+
+        const html = `
+      <form id="recurring-pay-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount</label>
+            <input type="number" id="rp-amount" value="${defaultAmount}" min="0" step="1" required>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="rp-date" value="${defaultDate}" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Paid By</label>
+            <select id="rp-paidby">
+              <option value="husband">Husband</option>
+              <option value="wife">Wife</option>
+              <option value="joint">Joint</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Method</label>
+            <select id="rp-method">
+              ${Utils.paymentMethods.map(m => `<option value="${m}">${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="rp-notes" placeholder="Optional notes...">${status.status === 'paid' && status.amount ? 'Adjusted payment' : ''}</textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="Utils.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">${status.status === 'paid' ? 'Update Payment' : 'Mark as Paid'}</button>
+        </div>
+      </form>
+    `;
+        Utils.openModal(`${recurring.name} - ${Utils.monthName(month)} ${year}`, html);
+
+        document.getElementById('rp-paidby').value = recurring.paidBy || 'husband';
+        document.getElementById('rp-method').value = recurring.paymentMethod || 'UPI';
+
+        document.getElementById('recurring-pay-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const amount = Number(document.getElementById('rp-amount').value);
+            const date = document.getElementById('rp-date').value;
+            const paidBy = document.getElementById('rp-paidby').value;
+            const paymentMethod = document.getElementById('rp-method').value;
+            const notes = document.getElementById('rp-notes').value.trim();
+
+            const expenseData = {
+                amount,
+                date,
+                description: recurring.name + ' (Recurring)',
+                category: recurring.category,
+                subcategory: recurring.subcategory || '',
+                paidBy,
+                paymentMethod,
+                isRecurring: true,
+                notes: notes || `${recurring.frequency} expense - ${Utils.monthName(month)} ${year}`
+            };
+
+            let expenseEntryId = status.expenseEntryId;
+            if (expenseEntryId) {
+                await API.update('expenses', expenseEntryId, expenseData);
+            } else {
+                const created = await API.create('expenses', expenseData);
+                expenseEntryId = created.id;
+            }
+
+            await ExpensesPage.updatePaidReminder({
+                expenseId: recurring.id,
+                dueMonth: month,
+                year,
+                paidDate: date,
+                amount,
+                expenseEntryId,
+                status: 'paid'
+            });
+
+            Utils.toast('Recurring expense recorded', 'success');
+            Utils.closeModal();
+            ExpensesPage.render();
+            if (location.hash.includes('dashboard')) DashboardPage.render();
+        });
+    },
+
+    async skipRecurring(recurringId) {
+        const { month, year } = Utils.currentMonth();
+        await ExpensesPage.updatePaidReminder({
+            expenseId: recurringId,
+            dueMonth: month,
+            year,
+            status: 'skipped'
+        });
+        Utils.toast('Marked as not required for this month');
+        ExpensesPage.render();
+    },
+
+    async updatePaidReminder(entry) {
+        const settings = await API.get('settings');
+        const paidReminders = settings.paidReminders || [];
+        const filtered = paidReminders.filter(r => !(r.expenseId === entry.expenseId && r.dueMonth === entry.dueMonth && r.year === entry.year));
+        filtered.push(entry);
+        await API.updateCollection('settings', { paidReminders: filtered });
     },
 
     updateSubcategories() {

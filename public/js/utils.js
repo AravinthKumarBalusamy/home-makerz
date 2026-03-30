@@ -41,6 +41,13 @@ const Utils = {
         return new Date().toISOString().split('T')[0];
     },
 
+    addDays(dateStr, days) {
+        const base = dateStr ? new Date(dateStr) : new Date();
+        const copy = new Date(base);
+        copy.setDate(base.getDate() + days);
+        return copy.toISOString().split('T')[0];
+    },
+
     currentMonth() {
         const d = new Date();
         return { month: d.getMonth() + 1, year: d.getFullYear() };
@@ -162,6 +169,7 @@ const Utils = {
         'Entertainment': ['Movies', 'Subscriptions', 'Events', 'Hobbies', 'Other'],
         'Shopping': ['Clothing', 'Electronics', 'Home', 'Personal Care', 'Other'],
         'Housing': ['Rent', 'Maintenance', 'Furniture', 'Appliances', 'Other'],
+        'Debt': ['Loan', 'Credit Bill', 'Mortgage', 'Other'],
         'Savings': ['Investment', 'FD', 'RD', 'SIP', 'Other'],
         'Other': ['Miscellaneous']
     },

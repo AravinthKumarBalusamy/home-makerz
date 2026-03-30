@@ -153,17 +153,26 @@ const App = {
     };
 
     const widgets = settings?.widgets || { left: [], right: [] };
-    leftContainer.innerHTML = (widgets.left || []).map(renderWidget).join('');
+    const reminderWidgets = [
+      ...(widgets.left || []).filter(w => w.type === 'reminder'),
+      ...(widgets.right || []).filter(w => w.type === 'reminder')
+    ];
 
-    // Build right sidebar: user widgets + upcoming expense reminders
-    let rightHtml = (widgets.right || []).map(renderWidget).join('');
+    leftContainer.innerHTML = (widgets.left || [])
+      .filter(w => w.type !== 'reminder')
+      .map(renderWidget)
+      .join('');
+
+    // Build right sidebar: all reminder widgets + right-side widgets + upcoming expense reminders
+    const rightSideWidgets = (widgets.right || []).filter(w => w.type !== 'reminder');
+    let rightHtml = [...reminderWidgets, ...rightSideWidgets].map(renderWidget).join('');
     rightHtml += App.buildUpcomingRemindersWidget(settings);
     rightContainer.innerHTML = rightHtml;
   },
 
   // ── Upcoming Expense Reminders ──────────────────────────────────
   buildUpcomingRemindersWidget(settings) {
-    const recurringExpenses = settings?.recurringExpenses || [];
+    const recurringExpenses = (settings?.recurringExpenses || []).filter(r => r.category !== 'Savings'); // Exclude investments
     const paidReminders = settings?.paidReminders || [];
     const now = new Date();
     const currentMonth = now.getMonth() + 1; // 1-12
@@ -381,7 +390,8 @@ const App = {
         paidDate: date,
         expenseEntryId: createdExpense.id,
         deductedFrom: deductFrom,
-        amount
+        amount,
+        status: 'paid'
       });
       await API.updateCollection('settings', { paidReminders });
 

@@ -512,6 +512,170 @@ main {
   justify-content: center;
 }
 
+/* ── Weekly calendar (dashboard) ───────────────────────────────────── */
+.week-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.week-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 8px 4px;
+  scroll-snap-type: x mandatory;
+}
+
+.week-card {
+  min-width: 190px;
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 12px;
+  scroll-snap-align: start;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.week-card.today {
+  border-color: var(--primary);
+  box-shadow: 0 6px 16px rgba(69, 99, 239, 0.12);
+}
+
+.week-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.week-day {
+  font-weight: 600;
+  color: var(--text-light);
+  letter-spacing: 0.2px;
+}
+
+.week-date {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.week-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.week-task {
+  width: 100%;
+  border: 1px solid var(--border-light);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border var(--transition), transform var(--transition);
+}
+
+.week-task:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.week-task-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.week-task-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.empty-day {
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.task-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-detail-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.task-detail-desc {
+  margin: 0;
+  color: var(--text-light);
+}
+
+.task-detail-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Recurring expenses block ─────────────────────────────────────── */
+.recurring-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.recurring-card {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.recurring-card.paid {
+  border-color: var(--success);
+}
+
+.recurring-card.skipped {
+  border-color: var(--border);
+  opacity: 0.9;
+}
+
+.recurring-card.pending {
+  border-color: var(--warning);
+}
+
+.rc-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rc-title {
+  font-weight: 600;
+}
+
+.rc-amount {
+  font-weight: 700;
+}
+
+.rc-status-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+
+.recurring-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ── Badges ────────────────────────────────────────────────────────── */
 .badge {
   display: inline-block;

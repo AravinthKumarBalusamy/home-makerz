@@ -27,8 +27,8 @@ const SettingsPage = {
                 <tbody>${riRows}</tbody>
               </table>`;
 
-    // Build recurring expense rows
-    const reRows = (settings.recurringExpenses || []).map(r => `
+    // Build recurring expense rows (exclude Savings category)
+    const reRows = (settings.recurringExpenses || []).filter(r => r.category !== 'Savings').map(r => `
           <tr>
             <td><strong>${r.name}</strong></td>
             <td><span class="badge badge-category">${r.category}</span></td>
@@ -41,9 +41,44 @@ const SettingsPage = {
             </td>
           </tr>
         `).join('');
+    
+    // Calculate totals for recurring expenses
+    const recurringExpensesList = (settings.recurringExpenses || []).filter(r => r.category !== 'Savings');
+    const monthlyExpensesTotal = recurringExpensesList.filter(r => r.frequency === 'monthly').reduce((s, r) => s + r.amount, 0);
+    const yearlyExpensesTotal = recurringExpensesList.filter(r => r.frequency === 'yearly').reduce((s, r) => s + r.amount, 0);
+
+    // Build recurring investment rows (Savings category items)
+    const invRows = (settings.recurringExpenses || []).filter(r => r.category === 'Savings').map(r => `
+          <tr>
+            <td><strong>${r.name}</strong></td>
+            <td><span class="badge badge-category">${r.subcategory || 'Investment'}</span></td>
+            <td>${r.frequency}</td>
+            <td class="text-small text-muted">${r.frequency === 'yearly' && r.months ? r.months.map(m => Utils.monthNameShort(m)).join(', ') : 'All'}</td>
+            <td class="text-right amount">${Utils.currency(r.amount)}</td>
+            <td>
+              <button class="btn-icon" onclick="SettingsPage.editRecurring('${r.id}')" title="Edit">✏️</button>
+              <button class="btn-icon" onclick="SettingsPage.deleteRecurring('${r.id}')" title="Delete">🗑️</button>
+            </td>
+          </tr>
+        `).join('');
+    
+    // Calculate totals for investments
+    const investmentsList = (settings.recurringExpenses || []).filter(r => r.category === 'Savings');
+    const monthlyInvestmentsTotal = investmentsList.filter(r => r.frequency === 'monthly').reduce((s, r) => s + r.amount, 0);
+    const yearlyInvestmentsTotal = investmentsList.filter(r => r.frequency === 'yearly').reduce((s, r) => s + r.amount, 0);
 
     // Build widget lists
-    const leftWidgets = (settings.widgets?.left || []).map(w => `
+    const leftWidgetsList = (settings.widgets?.left || []).filter(w => w.type !== 'reminder');
+    const reminderWidgets = [
+      ...(settings.widgets?.left || []).filter(w => w.type === 'reminder'),
+      ...(settings.widgets?.right || []).filter(w => w.type === 'reminder')
+    ];
+    const rightWidgetsList = [
+      ...reminderWidgets,
+      ...(settings.widgets?.right || []).filter(w => w.type !== 'reminder')
+    ];
+
+    const leftWidgets = leftWidgetsList.map(w => `
           <div class="habit-row"><span>${w.type === 'quote' ? '💬' : w.type === 'reminder' ? '🔔' : w.type === 'photo' ? '📷' : '📄'} ${w.title}</span>
           <div>
             <button class="btn-icon" onclick="SettingsPage.editWidget('left','${w.id}')" title="Edit">✏️</button>
@@ -51,11 +86,11 @@ const SettingsPage = {
           </div></div>
         `).join('');
 
-    const rightWidgets = (settings.widgets?.right || []).map(w => `
+    const rightWidgets = rightWidgetsList.map(w => `
           <div class="habit-row"><span>${w.type === 'quote' ? '💬' : w.type === 'reminder' ? '🔔' : w.type === 'photo' ? '📷' : '📄'} ${w.title}</span>
           <div>
-            <button class="btn-icon" onclick="SettingsPage.editWidget('right','${w.id}')" title="Edit">✏️</button>
-            <button class="btn-icon" onclick="SettingsPage.deleteWidget('right','${w.id}')" title="Delete">🗑️</button>
+            <button class="btn-icon" onclick="SettingsPage.editWidget('${reminderWidgets.some(r => r.id === w.id) ? (settings.widgets?.right?.some(x => x.id === w.id) ? 'right' : 'left') : 'right'}','${w.id}')" title="Edit">✏️</button>
+            <button class="btn-icon" onclick="SettingsPage.deleteWidget('${reminderWidgets.some(r => r.id === w.id) ? (settings.widgets?.right?.some(x => x.id === w.id) ? 'right' : 'left') : 'right'}','${w.id}')" title="Delete">🗑️</button>
           </div></div>
         `).join('');
 
@@ -95,13 +130,42 @@ const SettingsPage = {
       <!-- Recurring Expenses -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Recurring Expenses</div>
-          <button class="btn btn-primary btn-sm" onclick="SettingsPage.showRecurringModal()">+ Add</button>
+          <div>
+            <div class="card-title">Recurring Expenses</div>
+            <div class="card-subtitle">
+              Monthly: <strong>${Utils.currency(monthlyExpensesTotal)}</strong> · 
+              Yearly: <strong>${Utils.currency(yearlyExpensesTotal)}</strong> · 
+              Total/Month: <strong>${Utils.currency(monthlyExpensesTotal + (yearlyExpensesTotal / 12))}</strong>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="SettingsPage.showRecurringModal()">+ Add Expense</button>
         </div>
+        ${reRows.length === 0 ? '<p class="text-muted">No recurring expenses configured.</p>' : `
         <table class="data-table">
           <thead><tr><th>Name</th><th>Category</th><th>Frequency</th><th>Months</th><th class="text-right">Amount</th><th></th></tr></thead>
           <tbody>${reRows}</tbody>
-        </table>
+        </table>`}
+      </div>
+
+      <!-- Recurring Investments -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">💰 Recurring Investments</div>
+            <div class="card-subtitle">
+              Monthly: <strong>${Utils.currency(monthlyInvestmentsTotal)}</strong> · 
+              Yearly: <strong>${Utils.currency(yearlyInvestmentsTotal)}</strong> · 
+              Total/Month: <strong>${Utils.currency(monthlyInvestmentsTotal + (yearlyInvestmentsTotal / 12))}</strong>
+              <span class="text-muted"> · Not counted as expenses</span>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="SettingsPage.showRecurringModal(null, true)">+ Add Investment</button>
+        </div>
+        ${invRows.length === 0 ? '<p class="text-muted">No recurring investments configured.</p>' : `
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Frequency</th><th>Months</th><th class="text-right">Amount</th><th></th></tr></thead>
+          <tbody>${invRows}</tbody>
+        </table>`}
       </div>
 
       <!-- Widgets -->
@@ -110,6 +174,9 @@ const SettingsPage = {
           <div class="card-title">Sidebar Widgets</div>
           <button class="btn btn-primary btn-sm" onclick="SettingsPage.showWidgetModal()">+ Add Widget</button>
         </div>
+        <p class="text-small text-muted" style="margin: 0 0 12px;">
+          Reminder widgets always appear on the right sidebar.
+        </p>
         <div class="form-row">
           <div>
             <h4 class="mb-8">Left Sidebar</h4>
@@ -221,31 +288,59 @@ const SettingsPage = {
   },
 
   // ── Recurring Expenses CRUD ────────────────────────────────────
-  showRecurringModal(recurring = null) {
+  showRecurringModal(recurring = null, isInvestment = false) {
     const isEdit = !!recurring;
+    
+    // If editing, determine if it's an investment based on category
+    if (isEdit && !isInvestment) {
+      isInvestment = recurring.category === 'Savings';
+    }
+    
     const html = `
       <form id="recurring-form">
         <div class="form-row">
-          <div class="form-group"><label>Name</label><input type="text" id="rec-name" value="${recurring?.name || ''}" required></div>
-          <div class="form-group"><label>Amount</label><input type="number" id="rec-amount" value="${recurring?.amount || ''}" min="0" required></div>
+          <div class="form-group"><label>Name <span class="required">*</span></label><input type="text" id="rec-name" value="${recurring?.name || ''}" required placeholder="${isInvestment ? 'e.g., SIP - Mutual Fund' : 'e.g., Rent'}"></div>
+          <div class="form-group"><label>Amount <span class="required">*</span></label><input type="number" id="rec-amount" value="${recurring?.amount || ''}" min="0" required placeholder="₹ 0"></div>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Frequency</label>
             <select id="rec-freq"><option value="monthly" ${recurring?.frequency === 'monthly' ? 'selected' : ''}>Monthly</option><option value="yearly" ${recurring?.frequency === 'yearly' ? 'selected' : ''}>Yearly</option></select>
           </div>
-          <div class="form-group"><label>Category</label>
-            <select id="rec-cat">${Object.keys(Utils.categories).map(c => `<option value="${c}" ${recurring?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+          ${isInvestment ? `
+          <div class="form-group"><label>Investment Type</label>
+            <select id="rec-subcat">
+              <option value="SIP" ${recurring?.subcategory === 'SIP' ? 'selected' : ''}>SIP (Mutual Fund)</option>
+              <option value="PPF" ${recurring?.subcategory === 'PPF' ? 'selected' : ''}>PPF</option>
+              <option value="RD" ${recurring?.subcategory === 'RD' ? 'selected' : ''}>RD (Recurring Deposit)</option>
+              <option value="FD" ${recurring?.subcategory === 'FD' ? 'selected' : ''}>FD (Fixed Deposit)</option>
+              <option value="NPS" ${recurring?.subcategory === 'NPS' ? 'selected' : ''}>NPS</option>
+              <option value="Stocks" ${recurring?.subcategory === 'Stocks' ? 'selected' : ''}>Stocks</option>
+              <option value="Gold" ${recurring?.subcategory === 'Gold' ? 'selected' : ''}>Gold</option>
+              <option value="Other" ${recurring?.subcategory === 'Other' ? 'selected' : ''}>Other</option>
+            </select>
           </div>
+          ` : `
+          <div class="form-group"><label>Category</label>
+            <select id="rec-cat">${Object.keys(Utils.categories).filter(c => c !== 'Savings').map(c => `<option value="${c}" ${recurring?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+          </div>
+          `}
         </div>
         <div class="form-group"><label>Months (for yearly, comma-separated, e.g. 1,12)</label>
           <input type="text" id="rec-months" value="${recurring?.months ? recurring.months.join(',') : ''}" placeholder="Leave empty for monthly">
         </div>
+        ${isInvestment ? `
+        <div class="info-box" style="background: var(--success-bg); border-left: 3px solid var(--success); padding: 12px; margin-top: 12px; border-radius: 4px;">
+          <div style="font-size: 0.9rem; color: var(--text-primary);">
+            💡 <strong>Note:</strong> Investments are tracked separately and won't be counted as expenses in your budget calculations.
+          </div>
+        </div>
+        ` : ''}
         <div class="form-actions">
           <button type="button" class="btn btn-outline" onclick="Utils.closeModal()">Cancel</button>
           <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Add'}</button>
         </div>
       </form>`;
-    Utils.openModal(isEdit ? 'Edit Recurring' : 'Add Recurring Expense', html);
+    Utils.openModal(isEdit ? (isInvestment ? 'Edit Investment' : 'Edit Recurring Expense') : (isInvestment ? 'Add Recurring Investment' : 'Add Recurring Expense'), html);
     document.getElementById('recurring-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const settings = await API.get('settings');
@@ -255,8 +350,8 @@ const SettingsPage = {
         name: document.getElementById('rec-name').value.trim(),
         amount: Number(document.getElementById('rec-amount').value),
         frequency: document.getElementById('rec-freq').value,
-        category: document.getElementById('rec-cat').value,
-        subcategory: '',
+        category: isInvestment ? 'Savings' : document.getElementById('rec-cat').value,
+        subcategory: isInvestment ? document.getElementById('rec-subcat').value : '',
         months: document.getElementById('rec-months').value.trim() ?
           document.getElementById('rec-months').value.split(',').map(Number) : null
       };
@@ -319,8 +414,9 @@ const SettingsPage = {
     document.getElementById('widget-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const settings = await API.get('settings');
-      const targetSide = isEdit ? side : document.getElementById('wid-side').value;
+      const selectedSide = isEdit ? side : document.getElementById('wid-side').value;
       const type = document.getElementById('wid-type').value;
+      const targetSide = type === 'reminder' ? 'right' : selectedSide;
       const widgetData = {
         id: widget?.id || 'w' + Date.now(), 
         type,
@@ -330,14 +426,10 @@ const SettingsPage = {
       };
       if (!settings.widgets) settings.widgets = { left: [], right: [] };
       
-      if (isEdit) {
-        // Update existing widget
-        const idx = settings.widgets[targetSide].findIndex(w => w.id === widget.id);
-        if (idx >= 0) settings.widgets[targetSide][idx] = widgetData;
-      } else {
-        // Add new widget
-        settings.widgets[targetSide].push(widgetData);
-      }
+      // Ensure widget lives only on the chosen side
+      settings.widgets.left = (settings.widgets.left || []).filter(w => w.id !== widgetData.id);
+      settings.widgets.right = (settings.widgets.right || []).filter(w => w.id !== widgetData.id);
+      settings.widgets[targetSide].push(widgetData);
       
       await API.updateCollection('settings', { widgets: settings.widgets });
       Utils.closeModal(); 
