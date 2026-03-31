@@ -37,11 +37,13 @@ const BudgetPage = {
         const isRecurringEntry = (e) => e.isRecurring || ((e.description || '').toLowerCase() + ' ' + (e.notes || '').toLowerCase()).includes('recurring');
         const isInvestment = (e) => normCat(e.category) === 'savings';
         const isDebt = (e) => normCat(e.category) === 'debt';
+        const isCreditCard = (e) => (e.paymentMethod || '').toLowerCase() === 'credit card';
 
         const discretionaryExpenses = expensesThisMonth
             .filter(e => !isRecurringEntry(e))
             .filter(e => !isInvestment(e))
             .filter(e => !isDebt(e))
+            .filter(e => !isCreditCard(e))
             .reduce((sum, e) => sum + (e.amount || 0), 0);
 
         const container = document.getElementById('page-content');
@@ -73,7 +75,7 @@ const BudgetPage = {
         <div class="summary-card accent-teal">
           <div class="sc-label">Spent</div>
           <div class="sc-value">${Utils.currency(discretionaryExpenses)}</div>
-          <div class="sc-sub">${currentBudget ? Utils.currency(currentBudget.amount - discretionaryExpenses) + ' remaining' : 'Non-recurring only'}</div>
+          <div class="sc-sub">${currentBudget ? Utils.currency(currentBudget.amount - discretionaryExpenses) + ' remaining' : 'Non-recurring only'} · excludes credit card</div>
         </div>
       </div>
 

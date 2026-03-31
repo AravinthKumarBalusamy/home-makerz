@@ -16,25 +16,23 @@ const PORT = process.env.PORT || 3000;
 const APP_PIN = process.env.APP_PIN || null;
 
 // ── Session Store (in-memory) ──────────────────────────────────────
+const sessions = new Map();
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
-const SESSION_SECRET = process.env.APP_SECRET || process.env.APP_PIN || crypto.randomBytes(32).toString('hex');
 
-function issueSessionToken() {
-  const ts = Date.now().toString();
-  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(ts).digest('hex');
-  return `${ts}.${sig}`;
+function createSession() {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, { createdAt: Date.now() });
+  return token;
 }
 
 function isValidSession(token) {
   if (!token) return false;
-  const [ts, sig] = token.split('.');
-  if (!ts || !sig) return false;
-  const expected = crypto.createHmac('sha256', SESSION_SECRET).update(ts).digest('hex');
-  const sigBuf = Buffer.from(sig);
-  const expBuf = Buffer.from(expected);
-  if (sigBuf.length !== expBuf.length) return false;
-  if (!crypto.timingSafeEqual(sigBuf, expBuf)) return false;
-  if (Date.now() - Number(ts) > SESSION_MAX_AGE) return false;
+  const session = sessions.get(token);
+  if (!session) return false;
+  if (Date.now() - session.createdAt > SESSION_MAX_AGE) {
+    sessions.delete(token);
+    return false;
+  }
   return true;
 }
 
@@ -71,26 +69,16 @@ const loginLimiter = rateLimit({
 // ── Auth Routes (before auth middleware) ────────────────────────────
 app.post('/api/auth/login', loginLimiter, (req, res) => {
   if (!APP_PIN) {
-    const token = issueSessionToken();
-    res.cookie('hm_session', token, {
-      httpOnly: true,
-      maxAge: SESSION_MAX_AGE,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
-    });
+    const token = createSession();
+    res.cookie('hm_session', token, { httpOnly: true, maxAge: SESSION_MAX_AGE, sameSite: 'lax' });
     return res.json({ success: true });
   }
   const { pin } = req.body;
   if (!pin || pin !== APP_PIN) {
     return res.status(401).json({ error: 'Invalid PIN' });
   }
-  const token = issueSessionToken();
-  res.cookie('hm_session', token, {
-    httpOnly: true,
-    maxAge: SESSION_MAX_AGE,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production'
-  });
+  const token = createSession();
+  res.cookie('hm_session', token, { httpOnly: true, maxAge: SESSION_MAX_AGE, sameSite: 'lax' });
   res.json({ success: true });
 });
 
@@ -101,6 +89,8 @@ app.get('/api/auth/check', (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
+  const token = req.cookies?.hm_session;
+  if (token) sessions.delete(token);
   res.clearCookie('hm_session');
   res.json({ success: true });
 });

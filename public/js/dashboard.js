@@ -45,6 +45,7 @@ const DashboardPage = {
     const expensesThisMonth = expenses.filter(e => Utils.isSameMonth(e.date));
     const recurringNames = new Set((settings.recurringExpenses || []).map(r => (r.name || '').toLowerCase()));
     const normCat = (c) => (c || '').toString().trim().toLowerCase();
+    const isCreditCardExpense = (e) => (e.paymentMethod || '').toLowerCase() === 'credit card';
 
     const textBlob = (e) => `${e.description || ''} ${e.notes || ''}`.toLowerCase();
     const isRecurringEntry = (e) => {
@@ -57,14 +58,16 @@ const DashboardPage = {
     const isInvestmentEntry = (e) => normCat(e.category) === 'savings';
     const isDebtEntry = (e) => normCat(e.category) === 'debt';
 
-    // For the Month Expenses card (orange), exclude only Savings; show Debt there
+    const creditCardExpenses = expensesThisMonth.filter(isCreditCardExpense);
+
+    // Cash expenses: exclude Savings, Credit Card, and Recurring (since they'll be paid separately)
     const monthExpenses = expensesThisMonth
-      .filter(e => !isInvestmentEntry(e))
+      .filter(e => !isInvestmentEntry(e) && !isCreditCardExpense(e) && !isRecurringEntry(e))
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    // For budget progress, exclude Savings and Debt
+    // For budget progress, exclude Savings, Debt, and Credit Card (cash budget only)
     const budgetEligible = expensesThisMonth
-      .filter(e => !isInvestmentEntry(e) && !isDebtEntry(e));
+      .filter(e => !isInvestmentEntry(e) && !isDebtEntry(e) && !isCreditCardExpense(e));
 
     const recurringList = budgetEligible.filter(isRecurringEntry);
     const discretionaryList = budgetEligible.filter(e => !isRecurringEntry(e));
@@ -75,8 +78,7 @@ const DashboardPage = {
     const debtThisMonth = expensesThisMonth.filter(isDebtEntry);
     const monthIncome = income.filter(i => Utils.isSameMonth(i.date))
       .reduce((sum, i) => sum + (i.amount || 0), 0);
-    // Savings should subtract both expenses and investments
-    const monthSavings = monthIncome - (monthExpenses + investmentsTotal);
+    const creditCardTotal = creditCardExpenses.reduce((s, e) => s + (e.amount || 0), 0);
 
     // Recurring status for this month (expenses only, exclude Savings)
     const recurringForMonth = (settings.recurringExpenses || []).filter(r => {
@@ -105,6 +107,27 @@ const DashboardPage = {
     const recurringTotal = recurringForMonth.reduce((s, r) => s + (r.amount || 0), 0);
     const recurringRemaining = Math.max(recurringTotal - recurringPaid - recurringSkipped, 0);
     const recurringPendingCount = recurringForMonth.length - recurringPaidCount - recurringSkippedCount;
+    // Savings/Remaining: income minus cash expenses, recurring, and investments
+    const monthSavings = monthIncome - (monthExpenses + recurringTotal + investmentsTotal);
+
+    // Expose lists for info popups with status
+    window._dashboardRecurringDetails = recurringForMonth.map(r => {
+      const st = statusFor(r);
+      let status = 'pending';
+      let paidAmount = r.amount || 0;
+      if (st) {
+        if (st.status === 'skipped') status = 'skipped';
+        else status = 'paid';
+        paidAmount = st.amount || r.amount || 0;
+      }
+      return {
+        name: r.name,
+        amount: r.amount || 0,
+        status,
+        paidAmount
+      };
+    });
+    window._dashboardInvestmentsThisMonth = investmentsThisMonth;
 
     // Budget
     const currentBudget = Array.isArray(budget) ?
@@ -198,34 +221,56 @@ const DashboardPage = {
           <div class="sc-sub">${budgetAmount > 0 ? Utils.currency(discretionaryExpenses) + ' of ' + Utils.currency(budgetAmount) : 'Set budget for ' + Utils.monthName(month)}</div>
           ${budgetAmount > 0 ? `<div class="progress-bar mt-8"><div class="progress-fill ${budgetPct > 90 ? 'danger' : budgetPct > 70 ? 'warning' : ''}" style="width:${Math.min(budgetPct, 100)}%"></div></div>` : ''}
         </div>
-        <div class="summary-card accent-orange">
-          <div class="sc-label">Recurring This Month</div>
-          <div class="sc-value">${Utils.currency(recurringTotal)}</div>
-          <div class="sc-sub">
-            ${recurringPaidCount} paid (${Utils.currency(recurringPaid)}) · 
-            ${recurringSkippedCount} skipped (${Utils.currency(recurringSkipped)}) · 
-            ${recurringPendingCount} pending (${Utils.currency(recurringRemaining)})
+        <div class="summary-card accent-red">
+          <div class="sc-label">Credit Card Charges</div>
+          <div class="sc-value">${Utils.currency(creditCardTotal)}</div>
+          <div class="sc-sub">${creditCardExpenses.length} charge${creditCardExpenses.length === 1 ? '' : 's'} · excluded from budget</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">This Month at a Glance</div>
+            <div class="card-subtitle">Cash view: credit card charges are counted when paid, not when swiped.</div>
           </div>
         </div>
-        <div class="summary-card accent-teal">
-          <div class="sc-label">Month Expenses</div>
-          <div class="sc-value">${Utils.currency(monthExpenses)}</div>
-          <div class="sc-sub">${Utils.monthName(month)} ${year} · excludes investments</div>
-        </div>
-        <div class="summary-card accent-orange">
-          <div class="sc-label">Investments</div>
-          <div class="sc-value">${Utils.currency(investmentsTotal)}</div>
-          <div class="sc-sub">${investmentsThisMonth.length} item${investmentsThisMonth.length === 1 ? '' : 's'} · Savings category</div>
-        </div>
-        <div class="summary-card accent-green">
-          <div class="sc-label">Month Income</div>
-          <div class="sc-value">${Utils.currency(monthIncome)}</div>
-          <div class="sc-sub">${Utils.monthName(month)} ${year}</div>
-        </div>
-        <div class="summary-card accent-purple">
-          <div class="sc-label">Savings</div>
-          <div class="sc-value">${Utils.currency(monthSavings)}</div>
-          <div class="sc-sub">${monthSavings >= 0 ? 'Income - expenses - investments' : 'Overspent ⚠️'}</div>
+        <div class="glance-grid">
+          <div class="glance-row">
+            <div>
+              <div class="gl-label">Income</div>
+              <div class="gl-sub">${Utils.monthName(month)} ${year}</div>
+            </div>
+            <div class="gl-value">${Utils.currency(monthIncome)}</div>
+          </div>
+          <div class="glance-row">
+            <div>
+              <div class="gl-label">Recurring This Month <button class="info-btn" onclick="DashboardPage.showRecurringInfo(event)">ℹ️</button></div>
+              <div class="gl-sub">${recurringPaidCount} paid · ${recurringPendingCount} pending · ${recurringSkippedCount} skipped</div>
+            </div>
+            <div class="gl-value">${Utils.currency(recurringTotal)}</div>
+          </div>
+          <div class="glance-row">
+            <div>
+              <div class="gl-label">Investments <button class="info-btn" onclick="DashboardPage.showInvestmentsInfo(event)">ℹ️</button></div>
+              <div class="gl-sub">Savings category items this month</div>
+            </div>
+            <div class="gl-value">${Utils.currency(investmentsTotal)}</div>
+          </div>
+          <div class="glance-row">
+            <div>
+              <div class="gl-label">Other Expenses</div>
+              <div class="gl-sub">Excludes recurring, investments & credit card charges</div>
+            </div>
+            <div class="gl-value">${Utils.currency(monthExpenses)}</div>
+          </div>
+          <div class="glance-row">
+            <div>
+              <div class="gl-label">Remaining</div>
+              <div class="gl-sub">Income - other expenses - recurring - investments</div>
+            </div>
+            <div class="gl-value ${monthSavings < 0 ? 'text-danger' : ''}">${Utils.currency(monthSavings)}</div>
+          </div>
         </div>
       </div>
 
@@ -415,6 +460,52 @@ const DashboardPage = {
   refreshTaskViews() {
     DashboardPage.render();
     if (location.hash.includes('tasks')) TasksPage.render();
+  },
+
+  showRecurringInfo(evt) {
+    evt?.stopPropagation?.();
+    const { month } = Utils.currentMonth();
+    const rows = (window._dashboardRecurringDetails || []).map(r => `
+      <tr>
+        <td>${r.name}</td>
+        <td>${r.status === 'paid' ? '<span class="badge badge-priority-low">Paid</span>' :
+          r.status === 'skipped' ? '<span class="badge badge-priority-high">Skipped</span>' :
+          '<span class="badge badge-category">Pending</span>'}</td>
+        <td class="text-right">${Utils.currency(r.amount || 0)}</td>
+        <td class="text-right">${r.status === 'paid' ? Utils.currency(r.paidAmount || r.amount || 0) : '-'}</td>
+      </tr>
+    `).join('');
+    const html = `
+      <div class="card-subtitle mb-8">Planned recurring expenses for ${Utils.monthName(month)}</div>
+      <table class="data-table">
+        <thead><tr><th>Expense</th><th>Status</th><th class="text-right">Planned</th><th class="text-right">Paid</th></tr></thead>
+        <tbody>
+          ${rows || '<tr><td colspan="4" class="text-muted">No recurring items this month.</td></tr>'}
+        </tbody>
+      </table>
+    `;
+    Utils.openModal('Recurring Details', html);
+  },
+
+  showInvestmentsInfo(evt) {
+    evt?.stopPropagation?.();
+    const { month } = Utils.currentMonth();
+    const rows = (window._dashboardInvestmentsThisMonth || []).map(i => `
+      <tr>
+        <td>${i.description || i.notes || 'Investment'}</td>
+        <td class="text-right">${Utils.currency(i.amount || 0)}</td>
+      </tr>
+    `).join('');
+    const html = `
+      <div class="card-subtitle mb-8">Savings category items in ${Utils.monthName(month)}</div>
+      <table class="data-table">
+        <thead><tr><th>Item</th><th class="text-right">Amount</th></tr></thead>
+        <tbody>
+          ${rows || '<tr><td colspan="2" class="text-muted">No investments this month.</td></tr>'}
+        </tbody>
+      </table>
+    `;
+    Utils.openModal('Investments Details', html);
   },
 
   async toggleTask(id, complete) {
