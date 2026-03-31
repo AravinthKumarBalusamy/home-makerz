@@ -306,34 +306,23 @@ Respond with ONLY a JSON object in this exact format:
   }
 });
 
-// Fix dates where AI extracted wrong year
-function fixExtractedDate(dateStr) {
-  if (!dateStr) return new Date().toISOString().split('T')[0];
-  const parsed = new Date(dateStr);
-  if (isNaN(parsed)) return new Date().toISOString().split('T')[0];
-  const now = new Date();
-  const diffMs = now - parsed;
-  if (diffMs > 6 * 30 * 24 * 60 * 60 * 1000) {
-    parsed.setFullYear(now.getFullYear());
-  }
-  return parsed.toISOString().split('T')[0];
-}
-
 // Import extracted bill items as expenses
 app.post('/api/bills/import', async (req, res) => {
   try {
-    const { items, store, date, billType, total, paidBy, paymentMethod } = req.body;
+    const { items, store, billType, total, paidBy, paymentMethod } = req.body;
     if (!items || !items.length) return res.status(400).json({ error: 'No items to import' });
 
     const billId = uuidv4();
     const importedExpenseIds = [];
+    const today = new Date().toISOString().split('T')[0];
 
     for (const item of items) {
       if (item.excluded) continue;
       const expense = {
         id: uuidv4(),
         amount: Number(item.amount) || 0,
-        date: fixExtractedDate(item.date || date),
+        // Always use today's date to avoid incorrect or missing dates from bills
+        date: today,
         description: item.description || 'Bill item',
         category: item.category || 'Other',
         subcategory: item.subcategory || 'Miscellaneous',
@@ -353,7 +342,8 @@ app.post('/api/bills/import', async (req, res) => {
       id: billId,
       billType: billType || 'general',
       store: store || 'Unknown',
-      date: date || new Date().toISOString().split('T')[0],
+      // Always record the bill as of today (AI dates can be unreliable or missing)
+      date: today,
       total: Number(total) || items.reduce((s, i) => s + (Number(i.amount) || 0), 0),
       itemCount: importedExpenseIds.length,
       importedExpenseIds,
