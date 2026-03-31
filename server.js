@@ -16,24 +16,34 @@ const PORT = process.env.PORT || 3000;
 const APP_PIN = process.env.APP_PIN || null;
 
 // ── Session Store (in-memory) ──────────────────────────────────────
-const sessions = new Map();
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_SECRET = process.env.SESSION_SECRET || APP_PIN || 'homemakerz-session-secret';
 
 function createSession() {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { createdAt: Date.now() });
-  return token;
+  const payload = Buffer.from(JSON.stringify({ createdAt: Date.now() })).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+  return `${payload}.${sig}`;
 }
 
 function isValidSession(token) {
   if (!token) return false;
-  const session = sessions.get(token);
-  if (!session) return false;
-  if (Date.now() - session.createdAt > SESSION_MAX_AGE) {
-    sessions.delete(token);
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+  const [payload, sig] = parts;
+  const expected = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return false;
+  } catch (err) {
     return false;
   }
-  return true;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data.createdAt) return false;
+    if (Date.now() - data.createdAt > SESSION_MAX_AGE) return false;
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 // ── Multer config (memory storage — no files saved to disk) ────────
@@ -89,8 +99,6 @@ app.get('/api/auth/check', (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  const token = req.cookies?.hm_session;
-  if (token) sessions.delete(token);
   res.clearCookie('hm_session');
   res.json({ success: true });
 });
